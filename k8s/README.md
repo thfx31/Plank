@@ -124,9 +124,7 @@ graph TD
     class Server core;
     class Client,BeeHub plain;
 ```
-
 ---
-
 ## 5. Data flow
 
 ### Scénario : Un étudiant lance un exercice
@@ -137,9 +135,17 @@ graph TD
 5.  **BeeAPI-Tlse** : Lecture du fichier sur disque et réponse au serveur
 6.  **Server** -> **Client** : Renvoi du JSON de l'exercice
 
+---
+
 ## 6. Choix d'infrastructure (Kubernetes)
 Le déploiement utilise les objets natifs K8s pour garantir robustesse et scalabilité :
 * **Namespaces** : Isolation de l'environnement (`algohive`)
 * **ConfigMaps/Secrets** : Externalisation de la configuration
 * **Services (ClusterIP)** : Découverte de services via DNS interne
 * **PVC (Persistent Volume Claims)** : Garantie de conservation des données (DB et Puzzles) indépendamment du cycle de vie des pods
+
+---
+
+## 7. Démarrage du PoC
+
+Voir documentation [Setup_PoC_Kind](docs/SETUP_POC_kind.md)
