@@ -1,131 +1,145 @@
 #!/bin/bash
 
+# --- PALETTE DE COULEURS ---
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[0;34m'
+CYAN='\033[0;36m'
+BOLD='\033[1m'
+NC='\033[0m' # No Color
+
 # --- CONFIGURATION ---
 NAMESPACE="algohive"
-K8S_PATH="../k8s-rework" #
+SEARCH_PATTERN="API key initialized"
 
-# Pattern pour la clé API
-SEARCH_PATTERN="API"
+# --- FONCTIONS ---
 
-# Couleurs
-GREEN='\033[0;32m'
-BLUE='\033[0;34m'
-YELLOW='\033[1;33m'
-CYAN='\033[0;36m'
-NC='\033[0m'
-
-# --- FONCTION DE DEPLOIEMENT DU SOCLE ---
-function deploy_base() {
-    echo -e "${CYAN}   DÉPLOIEMENT DU SOCLE (Infra + Core Apps)...${NC}"
-    
-    # 1. INITIALIZATION & COMMON
-    echo -n "   -> 00 & 01 (Namespace, Configs)... "
-    kubectl apply -f ${K8S_PATH}/00-initialization/ > /dev/null 2>&1
-    kubectl apply -f ${K8S_PATH}/01-common/ > /dev/null 2>&1
-    echo "OK"
-    
-    # 2. INFRASTRUCTURE (DB & Redis)
-    echo -n "   -> 02-infrastructure (Postgres, Redis)... "
-    kubectl apply -f ${K8S_PATH}/02-infrastructure/ -R > /dev/null 2>&1
-    echo "OK"
-
-    # 3. CORE APPS (Backend, Client, BeeHub)
-    # On lance explicitement les dossiers "communs" de 03-apps
-    echo "   -> 03-apps (Core)... "
-    
-    # Backend (Visible sur ton image)
-    echo -n "      - Backend: "
-    kubectl apply -f ${K8S_PATH}/03-apps/backend/ && echo "OK" || echo "Erreur ou manquant"
-
-    # Client (Supposé présent dans 03-apps)
-    echo -n "      - Client: "
-    if [ -d "${K8S_PATH}/03-apps/client" ]; then
-        kubectl apply -f ${K8S_PATH}/03-apps/client/ > /dev/null 2>&1 && echo "OK"
-    else
-        echo "Pas trouvé (ignoré)"
-    fi
-
-    # BeeHub (Supposé présent dans 03-apps)
-    echo -n "      - BeeHub: "
-    if [ -d "${K8S_PATH}/03-apps/beehub" ]; then
-        kubectl apply -f ${K8S_PATH}/03-apps/beehub/ > /dev/null 2>&1 && echo "OK"
-    else
-        echo "Pas trouvé (ignoré)"
-    fi
-    
-    echo -e "${GREEN}  Socle opérationnel.${NC}"
-    echo "---------------------------------------------------"
+show_menu() {
+    echo -e "${CYAN}=========================================${NC}"
+    echo -e "${BOLD}🐝  ALGOHIVE - INFRA MANAGER (PLANK)${NC}"
+    echo -e "${CYAN}=========================================${NC}"
+    echo "1) Toulouse (Déployer & Clé)"
+    echo "2) Montpellier (Déployer & Clé)"
+    echo "3) Lyon (Déployer & Clé)"
+    echo "4) Staging (Déployer & Clé)"
+    echo "5) TOUT DÉPLOYER (Stack complète)"
+    echo -e "${CYAN}=========================================${NC}"
+    echo -n "Votre choix : "
+    read CHOICE
 }
 
-# --- FONCTION RECUPERATION CLE ---
-function wait_and_get_key() {
-    local APP_LABEL=$1
-    echo -e "${BLUE}Attente du démarrage du Pod (${APP_LABEL})...${NC}"
+# Fonction générique pour appliquer un dossier
+deploy_step() {
+    local FOLDER=$1
+    local DESC=$2
+    if [ -d "$FOLDER" ]; then
+        echo -e -n "🏗️   Déploiement de ${BOLD}${DESC}${NC}..."
+        # On capture la sortie pour rester propre, sauf erreur
+        OUTPUT=$(kubectl apply -R -f "$FOLDER" 2>&1)
+        if [ $? -eq 0 ]; then
+            echo -e " ${GREEN}OK${NC}"
+        else
+            echo -e " ${RED}ERREUR${NC}"
+            echo "$OUTPUT"
+        fi
+    else
+        echo -e "${YELLOW}⚠️   Dossier '$FOLDER' introuvable (étape ignorée)${NC}"
+    fi
+}
+
+# Fonction qui lance toute l'infrastructure commune
+deploy_infra() {
+    echo -e "${BLUE}🔧  Vérification/Déploiement de l'infrastructure...${NC}"
+    deploy_step "00-initialization" "Namespace"
+    deploy_step "01-common" "Configs & Secrets"
+    deploy_step "02-infrastructure" "Infrastructure (DB & Redis)"
+    deploy_step "03-apps" "Applications (Client, Server, Bees...)"
+    echo "-----------------------------------------"
+}
+
+get_api_key() {
+    local CITY=$1
+    local LABEL="app=beeapi-server-${CITY}"
     
-    # Attente active
-    kubectl wait --for=condition=Ready pod -l app=${APP_LABEL} -n ${NAMESPACE} --timeout=90s > /dev/null
-    
-    if [ $? -ne 0 ]; then
-        echo -e "${YELLOW}Timeout : Le pod n'est pas prêt.${NC}"
+    echo -e "${YELLOW}⏳  [${CITY}] Recherche du Pod et de la clé...${NC}"
+
+    # 1. Vérification du Pod
+    local POD_NAME=""
+    local RETRY_POD=0
+    # On essaye pendant 10 secondes de trouver le pod (le temps que le déploiement se fasse)
+    while [ -z "$POD_NAME" ] && [ $RETRY_POD -lt 10 ]; do
+        POD_NAME=$(kubectl get pods -n ${NAMESPACE} -l ${LABEL} -o jsonpath="{.items[0].metadata.name}" 2>/dev/null)
+        if [ -z "$POD_NAME" ]; then
+            sleep 1
+            ((RETRY_POD++))
+        fi
+    done
+
+    if [ -z "$POD_NAME" ]; then
+        echo -e "${RED}❌  [${CITY}] Pod introuvable malgré le déploiement.${NC}"
         return
     fi
 
-    POD_NAME=$(kubectl get pod -l app=${APP_LABEL} -n ${NAMESPACE} -o jsonpath="{.items[0].metadata.name}")
-    echo -e "${GREEN}Pod prêt : ${POD_NAME}${NC}"
-    
-    # Recherche dans les logs
-    echo -e "${CYAN}Recherche de '${SEARCH_PATTERN}' dans les logs...${NC}"
-    LOG_RESULT=$(kubectl logs ${POD_NAME} -n ${NAMESPACE} | grep "${SEARCH_PATTERN}")
-    
-    if [ -z "$LOG_RESULT" ]; then
-        echo "Clé non trouvée (grep vide). Derniers logs :"
-        kubectl logs ${POD_NAME} -n ${NAMESPACE} | tail -n 3
+    # 2. Récupération des logs (Retry loop)
+    local MAX_RETRIES=30 
+    local COUNT=0
+    local KEY_FOUND=""
+
+    while [ $COUNT -lt $MAX_RETRIES ]; do
+        local LOG_LINE=$(kubectl logs ${POD_NAME} -n ${NAMESPACE} 2>/dev/null | grep "${SEARCH_PATTERN}")
+
+        if [ -n "$LOG_LINE" ]; then
+            KEY_FOUND=$(echo "$LOG_LINE" | awk '{print $NF}')
+            break
+        fi
+        sleep 2
+        ((COUNT++))
+    done
+
+    # 3. Affichage
+    if [ -n "$KEY_FOUND" ]; then
+        echo -e "${GREEN}🔑  [${CITY}] Clé : ${BOLD}${KEY_FOUND}${NC}"
     else
-        echo -e "${GREEN}${LOG_RESULT}${NC}"
+        echo -e "${RED}⚠️   [${CITY}] Timeout : La clé n'est pas encore apparue dans les logs.${NC}"
     fi
-    echo "---------------------------------------------------"
 }
 
-# --- MENU ---
-clear
-echo -e "${YELLOW}🐝  ALGOHIVE DEPLOYER${NC}"
-echo "1) Toulouse"
-echo "2) Montpellier"
-echo "3) Lyon"
-echo "4) Staging"
-echo "5) Tout lancer"
-read -p "Choix : " choice
+# --- EXÉCUTION DU PROGRAMME PRINCIPAL ---
 
-# ON LANCE LE SOCLE EN PREMIER (TOUJOURS)
-deploy_base
+show_menu
 
-case $choice in
-  1)
-    echo -e "${BLUE}Lancement BeeAPI TOULOUSE...${NC}"
-    kubectl apply -f ${K8S_PATH}/03-apps/beeapi/toulouse/
-    wait_and_get_key "beeapi-server-tlse"
-    ;;
-  2)
-    echo -e "${BLUE}Lancement BeeAPI MONTPELLIER...${NC}"
-    kubectl apply -f ${K8S_PATH}/03-apps/beeapi/montpellier/
-    wait_and_get_key "beeapi-server-mpl"
-    ;;
-  3)
-    echo -e "${BLUE}Lancement BeeAPI LYON...${NC}"
-    kubectl apply -f ${K8S_PATH}/03-apps/beeapi/lyon/
-    wait_and_get_key "beeapi-server-lyon"
-    ;;
-  4)
-    echo -e "${BLUE}Lancement BeeAPI STAGING...${NC}"
-    kubectl apply -f ${K8S_PATH}/03-apps/beeapi/staging/
-    wait_and_get_key "beeapi-server-staging"
-    ;;
-  5)
-    echo -e "${BLUE}Lancement de TOUS les BeeAPI...${NC}"
-    kubectl apply -f ${K8S_PATH}/03-apps/beeapi/ -R
-    echo -e "${GREEN}Tout est lancé.${NC}"
-    ;;
-  *)
-    echo "Choix invalide."
-    ;;
+# Pour les choix 1 à 4, on lance l'infra PUIS on cherche la clé spécifique
+case $CHOICE in
+    1)
+        deploy_infra
+        get_api_key "tlse"
+        ;;
+    2)
+        deploy_infra
+        get_api_key "mpl"
+        ;;
+    3)
+        deploy_infra
+        get_api_key "lyon"
+        ;;
+    4)
+        deploy_infra
+        get_api_key "staging"
+        ;;
+    5)
+        deploy_infra
+        echo -e "${BLUE}📋  Récupération de TOUTES les clés...${NC}"
+        # On lance tout à la suite
+        get_api_key "tlse"
+        get_api_key "mpl"
+        get_api_key "lyon"
+        get_api_key "staging"
+        ;;
+    *)
+        echo -e "${RED}❌ Choix invalide.${NC}"
+        ;;
 esac
+
+echo "-----------------------------------------"
+echo -e "${GREEN}🎉  Terminé.${NC}"
