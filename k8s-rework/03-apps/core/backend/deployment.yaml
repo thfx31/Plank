@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: algohive-server
   namespace: algohive
+  labels:
+    app: algohive-server
 spec:
   replicas: 1
   selector:
@@ -16,13 +18,36 @@ spec:
       containers:
         - name: server
           image: ghcr.io/algohive-coding-puzzles/api:latest
+          imagePullPolicy: Always
+
           ports:
             - containerPort: 8080
+
+          # ---------- HEALTHCHECKS ----------
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+            failureThreshold: 3
+
+          # ---------- ENV FROM CONFIG / SECRETS ----------
           envFrom:
             - configMapRef:
                 name: algohive-config
             - secretRef:
                 name: algohive-secret
+
+          # ---------- RESOURCES (optional) ----------
           # resources:
           #   requests:
           #     memory: "64Mi"
