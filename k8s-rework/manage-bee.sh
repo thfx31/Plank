@@ -34,7 +34,7 @@ deploy_step() {
     local FOLDER=$1
     local DESC=$2
     if [ -d "$FOLDER" ]; then
-        echo -e -n "🏗️   Déploiement de ${BOLD}${DESC}${NC}..."
+        echo -e -n "Déploiement de ${BOLD}${DESC}${NC}..."
         # On capture la sortie pour rester propre, sauf erreur
         OUTPUT=$(kubectl apply -R -f "$FOLDER" 2>&1)
         if [ $? -eq 0 ]; then
@@ -50,7 +50,7 @@ deploy_step() {
 
 # Fonction qui lance toute l'infrastructure commune
 deploy_infra() {
-    echo -e "${BLUE}🔧  Vérification/Déploiement de l'infrastructure...${NC}"
+    echo -e "${BLUE}Vérification/Déploiement de l'infrastructure...${NC}"
     deploy_step "00-initialization" "Namespace"
     deploy_step "01-common" "Configs & Secrets"
     deploy_step "02-infrastructure" "Infrastructure (DB & Redis)"
@@ -62,7 +62,7 @@ get_api_key() {
     local CITY=$1
     local LABEL="app=beeapi-server-${CITY}"
     
-    echo -e "${YELLOW}⏳  [${CITY}] Recherche du Pod et de la clé...${NC}"
+    echo -e "${YELLOW}[${CITY}] Recherche de la clé API...${NC}"
 
     # 1. Vérification du Pod
     local POD_NAME=""
@@ -142,4 +142,4 @@ case $CHOICE in
 esac
 
 echo "-----------------------------------------"
-echo -e "${GREEN}🎉  Terminé.${NC}"
+echo -e "${GREEN} Déploiement terminé.${NC}"
