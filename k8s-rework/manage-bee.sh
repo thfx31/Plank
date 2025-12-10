@@ -23,19 +23,19 @@ show_menu() {
     echo "2) Montpellier"
     echo "3) Lyon"
     echo "4) Staging"
-    echo "5) TOUT DÉPLOYER"
+    echo "5) TOUT DÉPLOYER (Stack complète)"
     echo -e "${CYAN}=========================================${NC}"
-    echo -n "Votre choix : "
+    echo -n " Votre choix : "
     read CHOICE
 }
 
 deploy_step() {
     local FOLDER=$1
     local DESC=$2
-    # On vérifie si le dossier existe
-    if [ -d "$FOLDER" ]; then
-        echo -e -n "Déploiement de ${BOLD}${DESC}${NC}..."
-        # L'option -R (récursif) est importante pour tes dossiers core/backend, core/client etc.
+    # On vérifie si le dossier ou fichier existe
+    if [ -d "$FOLDER" ] || [ -f "$FOLDER" ]; then
+        echo -e -n "🏗️   Déploiement de ${BOLD}${DESC}${NC}..."
+        # L'option -R (récursif) permet de prendre tout le contenu
         OUTPUT=$(kubectl apply -R -f "$FOLDER" 2>&1)
         if [ $? -eq 0 ]; then
             echo -e " ${GREEN}OK${NC}"
@@ -44,12 +44,12 @@ deploy_step() {
             echo "$OUTPUT"
         fi
     else
-        echo -e "${YELLOW}⚠️   Dossier '$FOLDER' introuvable (étape ignorée)${NC}"
+        echo -e "${YELLOW}⚠️   Chemin '$FOLDER' introuvable (étape ignorée)${NC}"
     fi
 }
 
 deploy_core_infra() {
-    echo -e "${BLUE}Vérification du SOCLE (Infra + Core Apps)...${NC}"
+    echo -e "${BLUE}🔧  Vérification du SOCLE (Infra + Core Apps)...${NC}"
     deploy_step "00-initialization" "Namespace"
     deploy_step "01-common" "Configs & Secrets"
     deploy_step "02-infrastructure" "Infrastructure (DB & Redis)"
@@ -64,7 +64,7 @@ get_api_key() {
     local DISPLAY_NAME=$2 # Ex: Toulouse
     local LABEL="app=beeapi-server-${CITY_LABEL}"
     
-    echo -e "${YELLOW}[${DISPLAY_NAME}] Recherche de la clé API...${NC}"
+    echo -e "${YELLOW}⏳  [${DISPLAY_NAME}] Recherche de la clé API...${NC}"
 
     local POD_NAME=""
     local RETRY_POD=0
@@ -102,34 +102,21 @@ get_api_key() {
     fi
 }
 
-# --- LOGIQUE PRINCIPALE ---
+# --- EXÉCUTION DU PROGRAMME PRINCIPAL ---
 
-# Gestion de l'argument (pour le Makefile)
-if [ -n "$1" ]; then
-    case "$1" in
-        "all") CHOICE="5" ;;
-        "tlse") CHOICE="1" ;;
-        "mpl") CHOICE="2" ;;
-        "lyon") CHOICE="3" ;;
-        "staging") CHOICE="4" ;;
-        *) CHOICE="$1" ;;
-    esac
-else
-    show_menu
-fi
+# 1. On affiche TOUJOURS le menu
+show_menu
 
+# 2. On traite le choix utilisateur
 case $CHOICE in
     1)
         deploy_core_infra
-        # Déploie uniquement le dossier de Toulouse
         deploy_step "03-apps/beeapi/toulouse" "BeeAPI Toulouse"
-        # Cherche le label "tlse"
         get_api_key "tlse" "Toulouse"
         ;;
     2)
         deploy_core_infra
         deploy_step "03-apps/beeapi/montpellier" "BeeAPI Montpellier"
-        # Cherche le label "mpl"
         get_api_key "mpl" "Montpellier"
         ;;
     3)
@@ -159,4 +146,4 @@ case $CHOICE in
 esac
 
 echo "-----------------------------------------"
-echo -e "${GREEN}Déploiement terminé${NC}"
+echo -e "${GREEN}Déploiement Kubernetes terminé.${NC}"

@@ -2,13 +2,11 @@
 
 # Déploiement de l'infrastructure Kubernetes 
 deploy:
-	@../k8s-rework/manage-bee.sh all
+	@../k8s-rework/manage-bee.sh
 
 # Suppression de l'infrastructure Kubernetes
 destroy:
-	@echo  === "Suppression de l'infrastructure..."  ===
-	@kubectl delete namespace algohive
-	@echo  === "Nettoyage terminé "  ===
+	@../k8s-rework/destroy-bee.sh
 
 # Affiche l'état des pods
 status:
