@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: algohive-client
+  namespace: algohive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: algohive-client
+  template:
+    metadata:
+      labels:
+        app: algohive-client
+    spec:
+      containers:
+        - name: client
+          image: ghcr.io/algohive-coding-puzzles/client:latest
+          ports:
+            - containerPort: 80

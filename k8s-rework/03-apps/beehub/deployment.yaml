@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beehub
+  namespace: algohive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: beehub
+  template:
+    metadata:
+      labels:
+        app: beehub
+    spec:
+      containers:
+        - name: beehub
+          image: ghcr.io/algohive-coding-puzzles/beehub:latest
+          ports:
+            - containerPort: 8081
+          envFrom:
+            - configMapRef:
+                name: algohive-config
+            - secretRef:
+                name: algohive-secret
+          volumeMounts:
+            - name: db-storage
+              mountPath: /app/backend/db
+            - name: timezone
+              mountPath: /etc/localtime
+              readOnly: true
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: beehub-db-pvc
+        - name: timezone
+          hostPath:
+            path: /etc/localtime
