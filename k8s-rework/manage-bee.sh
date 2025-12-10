@@ -19,23 +19,23 @@ show_menu() {
     echo -e "${CYAN}=========================================${NC}"
     echo -e "${BOLD}🐝  ALGOHIVE - INFRA MANAGER (PLANK)${NC}"
     echo -e "${CYAN}=========================================${NC}"
-    echo "1) Toulouse (Déployer & Clé)"
-    echo "2) Montpellier (Déployer & Clé)"
-    echo "3) Lyon (Déployer & Clé)"
-    echo "4) Staging (Déployer & Clé)"
-    echo "5) TOUT DÉPLOYER (Stack complète)"
+    echo "1) Toulouse"
+    echo "2) Montpellier"
+    echo "3) Lyon"
+    echo "4) Staging"
+    echo "5) TOUT DÉPLOYER"
     echo -e "${CYAN}=========================================${NC}"
     echo -n "Votre choix : "
     read CHOICE
 }
 
-# Fonction générique pour appliquer un dossier
 deploy_step() {
     local FOLDER=$1
     local DESC=$2
+    # On vérifie si le dossier existe
     if [ -d "$FOLDER" ]; then
         echo -e -n "Déploiement de ${BOLD}${DESC}${NC}..."
-        # On capture la sortie pour rester propre, sauf erreur
+        # L'option -R (récursif) est importante pour tes dossiers core/backend, core/client etc.
         OUTPUT=$(kubectl apply -R -f "$FOLDER" 2>&1)
         if [ $? -eq 0 ]; then
             echo -e " ${GREEN}OK${NC}"
@@ -48,26 +48,27 @@ deploy_step() {
     fi
 }
 
-# Fonction qui lance toute l'infrastructure commune
-deploy_infra() {
-    echo -e "${BLUE}Vérification/Déploiement de l'infrastructure...${NC}"
+deploy_core_infra() {
+    echo -e "${BLUE}Vérification du SOCLE (Infra + Core Apps)...${NC}"
     deploy_step "00-initialization" "Namespace"
     deploy_step "01-common" "Configs & Secrets"
     deploy_step "02-infrastructure" "Infrastructure (DB & Redis)"
-    deploy_step "03-apps" "Applications (Client, Server, Bees...)"
+    
+    # Cible uniquement le dossier 'core' (Client, Backend, BeeHub)
+    deploy_step "03-apps/core" "Applications Core"
     echo "-----------------------------------------"
 }
 
 get_api_key() {
-    local CITY=$1
-    local LABEL="app=beeapi-server-${CITY}"
+    local CITY_LABEL=$1  # Ex: tlse, mpl
+    local DISPLAY_NAME=$2 # Ex: Toulouse
+    local LABEL="app=beeapi-server-${CITY_LABEL}"
     
-    echo -e "${YELLOW}[${CITY}] Recherche de la clé API...${NC}"
+    echo -e "${YELLOW}[${DISPLAY_NAME}] Recherche de la clé API...${NC}"
 
-    # 1. Vérification du Pod
     local POD_NAME=""
     local RETRY_POD=0
-    # On essaye pendant 10 secondes de trouver le pod (le temps que le déploiement se fasse)
+    # On attend un peu que le pod apparaisse après le kubectl apply
     while [ -z "$POD_NAME" ] && [ $RETRY_POD -lt 10 ]; do
         POD_NAME=$(kubectl get pods -n ${NAMESPACE} -l ${LABEL} -o jsonpath="{.items[0].metadata.name}" 2>/dev/null)
         if [ -z "$POD_NAME" ]; then
@@ -77,18 +78,15 @@ get_api_key() {
     done
 
     if [ -z "$POD_NAME" ]; then
-        echo -e "${RED}❌  [${CITY}] Pod introuvable malgré le déploiement.${NC}"
+        echo -e "${RED}❌  [${DISPLAY_NAME}] Pod introuvable.${NC}"
         return
     fi
 
-    # 2. Récupération des logs (Retry loop)
-    local MAX_RETRIES=30 
+    local MAX_RETRIES=30
     local COUNT=0
     local KEY_FOUND=""
-
     while [ $COUNT -lt $MAX_RETRIES ]; do
         local LOG_LINE=$(kubectl logs ${POD_NAME} -n ${NAMESPACE} 2>/dev/null | grep "${SEARCH_PATTERN}")
-
         if [ -n "$LOG_LINE" ]; then
             KEY_FOUND=$(echo "$LOG_LINE" | awk '{print $NF}')
             break
@@ -97,44 +95,63 @@ get_api_key() {
         ((COUNT++))
     done
 
-    # 3. Affichage
     if [ -n "$KEY_FOUND" ]; then
-        echo -e "${GREEN}🔑  [${CITY}] Clé : ${BOLD}${KEY_FOUND}${NC}"
+        echo -e "${GREEN}🔑  [${DISPLAY_NAME}] Clé : ${BOLD}${KEY_FOUND}${NC}"
     else
-        echo -e "${RED}⚠️   [${CITY}] Timeout : La clé n'est pas encore apparue dans les logs.${NC}"
+        echo -e "${RED}⚠️   [${DISPLAY_NAME}] Timeout.${NC}"
     fi
 }
 
-# --- EXÉCUTION DU PROGRAMME PRINCIPAL ---
+# --- LOGIQUE PRINCIPALE ---
 
-show_menu
+# Gestion de l'argument (pour le Makefile)
+if [ -n "$1" ]; then
+    case "$1" in
+        "all") CHOICE="5" ;;
+        "tlse") CHOICE="1" ;;
+        "mpl") CHOICE="2" ;;
+        "lyon") CHOICE="3" ;;
+        "staging") CHOICE="4" ;;
+        *) CHOICE="$1" ;;
+    esac
+else
+    show_menu
+fi
 
-# Pour les choix 1 à 4, on lance l'infra PUIS on cherche la clé spécifique
 case $CHOICE in
     1)
-        deploy_infra
-        get_api_key "tlse"
+        deploy_core_infra
+        # Déploie uniquement le dossier de Toulouse
+        deploy_step "03-apps/beeapi/toulouse" "BeeAPI Toulouse"
+        # Cherche le label "tlse"
+        get_api_key "tlse" "Toulouse"
         ;;
     2)
-        deploy_infra
-        get_api_key "mpl"
+        deploy_core_infra
+        deploy_step "03-apps/beeapi/montpellier" "BeeAPI Montpellier"
+        # Cherche le label "mpl"
+        get_api_key "mpl" "Montpellier"
         ;;
     3)
-        deploy_infra
-        get_api_key "lyon"
+        deploy_core_infra
+        deploy_step "03-apps/beeapi/lyon" "BeeAPI Lyon"
+        get_api_key "lyon" "Lyon"
         ;;
     4)
-        deploy_infra
-        get_api_key "staging"
+        deploy_core_infra
+        deploy_step "03-apps/beeapi/staging" "BeeAPI Staging"
+        get_api_key "staging" "Staging"
         ;;
     5)
-        deploy_infra
+        deploy_core_infra
+        # Déploie tout le dossier beeapi (toutes les villes d'un coup)
+        deploy_step "03-apps/beeapi" "TOUS les BeeAPI"
+        
         echo -e "${BLUE}📋  Récupération de TOUTES les clés...${NC}"
-        # On lance tout à la suite
-        get_api_key "tlse"
-        get_api_key "mpl"
-        get_api_key "lyon"
-        get_api_key "staging"
+        get_api_key "tlse" "Toulouse"
+        get_api_key "mpl" "Montpellier"
+        get_api_key "lyon" "Lyon"
+        get_api_key "staging" "Staging"
         ;;
     *)
         echo -e "${RED}❌ Choix invalide.${NC}"
@@ -142,4 +159,4 @@ case $CHOICE in
 esac
 
 echo "-----------------------------------------"
-echo -e "${GREEN} Déploiement terminé.${NC}"
+echo -e "${GREEN}Déploiement terminé${NC}"

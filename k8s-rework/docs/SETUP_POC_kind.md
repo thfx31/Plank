@@ -12,51 +12,31 @@ Avant de commencer, assurez-vous d'avoir les outils suivants installés sur votr
 
 ---
 
-## 1. Déploiement des manifestes
+## 1. Déploiement des manifestes (utilisation du makefile)
 
-**Important** : L'ordre d'application doit être respecté pour gérer les dépendances (Config > DB > Apps)
-
-### 1.1. Créer le namespace
+### Cloner le répo
 ```shell
-kubectl apply -f k8s/00-namespace.yaml
+git clone git@github.com:thfx31/Plank.git
 ```
 
-### 1.2. Appliquer la conf (secrets et configmap)
+### Changer de branche (dev en cours)
 ```shell
-kubectl apply -f k8s/01-config.yaml
+git checkout -b develop-thomas-kind
 ```
 
-### 1.3. Déployer les DB
+### Déploiement du cluster
 ```shell
-kubectl apply -f k8s/02-db.yaml
-kubectl apply -f k8s/03-redis.yaml
+make deploy
 ```
 
-### 1.4. Déployer le backend
+### Vérification des pods
 ```shell
-kkubectl apply -f k8s/04-server.yaml
-kubectl apply -f k8s/05-beeapi.yaml
+make status
 ```
 
-### 1.5. Déployer les interfaces (front et hub admin)
+### Suppression du cluster
 ```shell
-kubectl apply -f k8s/06-client.yaml
-kubectl apply -f k8s/07-beehub.yaml
-```
-
-### 1.6. Valider le déploiement
-```shell
-kubectl get pods -n algohive -w
-NAME                                    READY   STATUS    RESTARTS   AGE
-algohive-cache-6c799c7b8f-bp7tr         1/1     Running   0          7h16m
-algohive-client-85666d7ddc-6tx4g        1/1     Running   0          7h3m
-algohive-db-8f856ff75-96cr8             1/1     Running   0          7h20m
-algohive-server-7499d5ffc5-56dq9        1/1     Running   0          7h9m
-beeapi-server-lyon-86545fdf7d-9bwbf     1/1     Running   0          7h10m
-beeapi-server-mpl-5df98bd955-bwpj6      1/1     Running   0          7h10m
-beeapi-server-staging-97d66fb65-mf4mp   1/1     Running   0          7h10m
-beeapi-server-tlse-686c59fc97-2pv9c     1/1     Running   0          7h10m
-beehub-6ccbdc578f-fwdbn                 1/1     Running   0          7h2m
+make destroy
 ```
 
 ## 2. Accès aux applis (Port Forward)
