@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: algohive-server
+  namespace: algohive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: algohive-server
+  template:
+    metadata:
+      labels:
+        app: algohive-server
+    spec:
+      containers:
+        - name: server
+          image: ghcr.io/algohive-coding-puzzles/api:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: algohive-config
+            - secretRef:
+                name: algohive-secret
+          # resources:
+          #   requests:
+          #     memory: "64Mi"
+          #     cpu: "250m"
+          #   limits:
+          #     memory: "256Mi"
+          #     cpu: "500m"

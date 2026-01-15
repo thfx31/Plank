@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: beeapi-server-tlse
+  namespace: algohive
+spec:
+  selector:
+    app: beeapi-server-tlse
+  ports:
+    - port: 5000
+      targetPort: 5000

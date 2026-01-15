@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beeapi-server-staging
+  namespace: algohive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: beeapi-server-staging
+  template:
+    metadata:
+      labels:
+        app: beeapi-server-staging
+    spec:
+      containers:
+        - name: beeapi
+          image: ghcr.io/algohive-coding-puzzles/beeapi-go:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: SERVER_NAME
+              value: "Ynov-Staging"
+          volumeMounts:
+            - name: puzzles-storage
+              mountPath: /app/puzzles
+      volumes:
+        - name: puzzles-storage
+          persistentVolumeClaim:
+            claimName: puzzles-staging-pvc

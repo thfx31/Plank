@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: beeapi-server-lyon
+  namespace: algohive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: beeapi-server-lyon
+  template:
+    metadata:
+      labels:
+        app: beeapi-server-lyon
+    spec:
+      containers:
+        - name: beeapi
+          image: ghcr.io/algohive-coding-puzzles/beeapi-go:latest
+          ports:
+            - containerPort: 5000
+          env:
+            - name: SERVER_NAME
+              value: "Ynov-Lyon"
+          volumeMounts:
+            - name: puzzles-storage
+              mountPath: /app/puzzles
+      volumes:
+        - name: puzzles-storage
+          persistentVolumeClaim:
+            claimName: puzzles-lyon-pvc

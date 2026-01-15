@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: algohive-db
+  namespace: algohive
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: algohive-db
+  template:
+    metadata:
+      labels:
+        app: algohive-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:17-alpine
+          ports:
+            - containerPort: 5432
+          envFrom:
+            - configMapRef:
+                name: algohive-config
+            - secretRef:
+                name: algohive-secret
+          volumeMounts:
+            - name: db-storage
+              mountPath: /var/lib/postgresql/data
+            - name: timezone
+              mountPath: /etc/localtime
+              readOnly: true
+      volumes:
+        - name: db-storage
+          persistentVolumeClaim:
+            claimName: db-data-pvc
+        - name: timezone
+          hostPath:
+            path: /etc/localtime
