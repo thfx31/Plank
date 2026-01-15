@@ -26,6 +26,7 @@ git checkout -b develop-thomas-kind
 
 ### Déploiement du cluster
 ```shell
+cd k8s-v1
 make deploy
 ```
 
